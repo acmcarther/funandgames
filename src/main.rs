@@ -1,3 +1,4 @@
+#![feature(ip_addr)]
 use std::env;
 use std::ascii::AsciiExt;
 use std::io::stdin;
@@ -84,10 +85,9 @@ fn be_server(socket: UdpSocket) {
   }
 }
 
-fn be_client(socket: UdpSocket, client_params: ClientParams) {
+fn be_client(recv_socket: UdpSocket, client_params: ClientParams) {
   let (stdin_tx, stdin_rx) = channel();
   let (send_tx, send_rx) = channel();
-  let recv_socket = socket.try_clone().unwrap();
 
   // Console IO
   thread::spawn (move || {
@@ -109,10 +109,19 @@ fn be_client(socket: UdpSocket, client_params: ClientParams) {
     let full_server_addr_string: String = server_addr + ":" + &server_port;
     let full_server_addr: &str = full_server_addr_string.as_ref();
 
+    let client_port = (client_params.client_port + 1).to_string();
+    let full_client_addr_string: String = "127.0.0.1:".to_string() + &client_port;
+    let full_client_addr: &str = &full_client_addr_string;
+
     loop {
       let message_to_deliver: String = send_rx.recv().unwrap();
-      socket.send_to(message_to_deliver.as_bytes(), full_server_addr)
-        .map_err(log_error);
+
+      UdpSocket::bind(full_client_addr)
+        .map_err(log_error)
+        .map(|socket| {
+          socket.send_to(message_to_deliver.as_bytes(), full_server_addr)
+            .map_err(log_error);
+        });
     }
   });
 
@@ -150,8 +159,9 @@ fn reply_all(server_state: &ServerState, socket: &UdpSocket, possible_payload: O
   possible_payload.map(|msg| {
     println!("{:?}", server_state.users);
     let lotsOfNothing: Vec<()> = server_state.users.values().map (|socketAddr| {
+      let sendAddr = SocketAddr::new(socketAddr.ip(), socketAddr.port() - 1);
       println!("replying");
-      reply(socket, socketAddr, &msg)
+      reply(socket, &sendAddr, &msg)
     }).collect();
   });
 }
