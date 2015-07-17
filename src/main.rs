@@ -1,3 +1,4 @@
+#![feature(lookup_host)]
 use std::env;
 use std::ascii::AsciiExt;
 use std::io::stdin;
@@ -7,32 +8,31 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::collections::HashMap;
 
+mod str_ops;
+mod params;
+mod constants;
+use params::{
+  query_server_params,
+  query_client_params,
+  ClientParams,
+  ServerParams,
+};
+use str_ops::{default_string, translate_localhost};
+use constants::{LOCAL_IP, CODE_WORD};
+
 #[derive(Debug)]
 enum NetMode {
   Client,
   Server
 }
 
-#[derive(Clone)]
-struct ClientParams {
-  server_addr: String,
-  server_port: i32,
-  client_port: i32,
-}
-
-#[derive(Clone)]
-struct ServerParams {
-  server_port: i32
-}
-
 struct ServerState {
   users: HashMap<String, SocketAddr>
 }
 
-const CODE_WORD: &'static str = "funandgames";
-const LOCAL_IP: &'static str = "192.168.129.84";
-
 fn main() {
+  let host:Vec<SocketAddr> = std::net::lookup_host("rust-lang.org").unwrap().map(|x| x.unwrap()).collect();
+  println!("host: {:?}", host);
   let second_arg = env::args().nth(1);
   let net_mode = net_mode_from_string(&second_arg.unwrap_or("client".to_string()));
   println!("You are {:?}", net_mode);
@@ -195,50 +195,3 @@ fn log_error(err: Error) {
   println!("Connection Error: {}", err)
 }
 
-fn query_server_params() -> ServerParams {
-  let mut stdin = stdin();
-  let mut port_str = String::new();
-  println!("Server Port (5555): ");
-  stdin.read_line(&mut port_str);
-  port_str = default_string(port_str.trim(), "5555");
-
-  ServerParams { server_port: i32::from_str_radix(&port_str.trim(), 10).unwrap() }
-}
-
-fn query_client_params() -> ClientParams {
-  let mut stdin = stdin();
-  let mut client_port_str = String::new();
-  let mut server_port_str = String::new();
-  let mut server_addr_str = String::new();
-  println!("Client Port (4444): ");
-  stdin.read_line(&mut client_port_str);
-  println!("Server Port (5555): ");
-  stdin.read_line(&mut server_port_str);
-  println!("Server Addr (localhost): ");
-  stdin.read_line(&mut server_addr_str);
-  client_port_str = default_string(client_port_str.trim(), "4444");
-  server_port_str = default_string(server_port_str.trim(), "5555");
-  server_addr_str = translate_localhost(&default_string(server_addr_str.trim(), "localhost"));
-
-  ClientParams {
-    client_port: i32::from_str_radix(&client_port_str.trim(), 10).unwrap(),
-    server_port: i32::from_str_radix(&server_port_str.trim(), 10).unwrap(),
-    server_addr: server_addr_str.trim().to_string()
-  }
-}
-
-fn default_string(string: &str, default: &str) -> String {
-  if string == "" {
-    default.to_string()
-  } else {
-    string.to_string()
-  }
-}
-
-fn translate_localhost(string: &str) -> String {
-  if string == "localhost" {
-    LOCAL_IP.to_string()
-  } else {
-    string.to_string()
-  }
-}
