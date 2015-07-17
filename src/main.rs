@@ -30,6 +30,7 @@ struct ServerState {
 }
 
 const CODE_WORD: &'static str = "funandgames";
+const LOCAL_IP: &'static str = "192.168.129.84";
 
 fn main() {
   let second_arg = env::args().nth(1);
@@ -44,7 +45,7 @@ fn main() {
 fn server() {
   let server_params = query_server_params();
   let port = server_params.server_port.to_string();
-  let full_addr_string: String = "127.0.0.1:".to_string() + &port;
+  let full_addr_string: String = LOCAL_IP.to_string() + ":" + &port;
   let full_addr: &str = &full_addr_string;
 
   UdpSocket::bind(full_addr)
@@ -55,7 +56,7 @@ fn server() {
 fn client() {
   let client_params = query_client_params();
   let client_port = client_params.client_port.to_string();
-  let full_client_addr_string: String = "127.0.0.1:".to_string() + &client_port;
+  let full_client_addr_string: String = LOCAL_IP.to_string() + ":" + &client_port;
   let full_client_addr: &str = &full_client_addr_string;
 
   UdpSocket::bind(full_client_addr)
@@ -236,7 +237,7 @@ fn default_string(string: &str, default: &str) -> String {
 
 fn translate_localhost(string: &str) -> String {
   if string == "localhost" {
-    "127.0.0.1".to_string()
+    LOCAL_IP.to_string()
   } else {
     string.to_string()
   }
