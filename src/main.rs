@@ -17,7 +17,6 @@ use params::{
   ClientParams,
   ServerParams,
 };
-use str_ops::{default_string, translate_localhost};
 use constants::{LOCAL_IP, CODE_WORD};
 
 #[derive(Debug)]
@@ -50,6 +49,7 @@ fn server() {
 
   UdpSocket::bind(full_addr)
     .map_err(log_error)
+
     .map(be_server);
 }
 
@@ -150,9 +150,9 @@ fn add_user(server_state: &mut ServerState, possible_payload: Option<(SocketAddr
 fn reply_all(server_state: &ServerState, socket: &UdpSocket, possible_payload: Option<String>) {
   possible_payload.map(|msg| {
     println!("{:?}", server_state.users);
-    let lotsOfNothing: Vec<()> = server_state.users.values().map (|socketAddr| {
+    let lots_of_nothing: Vec<()> = server_state.users.values().map (|socket_addr| {
       println!("replying");
-      reply(socket, socketAddr, &msg)
+      reply(socket, socket_addr, &msg)
     }).collect();
   });
 }

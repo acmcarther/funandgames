@@ -1,7 +1,7 @@
 pub use self::str_ops::{default_string, translate_localhost};
 
 mod str_ops {
-  use constants::{LOCAL_IP, CODE_WORD};
+  use constants::LOCAL_IP;
 
   pub fn default_string(string: &str, default: &str) -> String {
     if string == "" {
