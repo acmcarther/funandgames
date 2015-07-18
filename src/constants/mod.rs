@@ -1,9 +1,9 @@
 pub use self::constants::{
-  CODE_WORD,
+  UDP_MARKER,
   LOCAL_IP
 };
 
 mod constants {
-  pub const CODE_WORD: &'static str = "funandgames";
+  pub const UDP_MARKER: &'static [u8] = b"012";
   pub const LOCAL_IP: &'static str = "192.168.129.84";
 }
