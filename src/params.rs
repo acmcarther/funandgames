@@ -6,19 +6,21 @@ pub use self::params::{
 };
 
 mod params {
-  use str_ops::{default_string, translate_localhost};
+  use str_ops::default_string;
+  use net_helpers::{get_own_ip, get_ip};
   use std::io::stdin;
+  use std::net::{SocketAddr};
+  use std::str::FromStr;
 
   #[derive(Clone)]
   pub struct ClientParams {
-    pub server_addr: String,
-    pub server_port: i32,
-    pub client_port: i32,
+    pub server_addr: SocketAddr,
+    pub addr: SocketAddr,
   }
 
   #[derive(Clone)]
   pub struct ServerParams {
-    pub server_port: i32
+    pub addr: SocketAddr,
   }
 
   pub fn query_server_params() -> ServerParams {
@@ -28,10 +30,14 @@ mod params {
     let _ = stdin.read_line(&mut port_str);
     port_str = default_string(port_str.trim(), "5555");
 
-    ServerParams { server_port: i32::from_str_radix(&port_str.trim(), 10).unwrap() }
+    let local_ip = get_own_ip();
+    let full_addr_string: String = local_ip.to_string() + ":" + &port_str;
+    let addr = SocketAddr::from_str(&full_addr_string).unwrap();
+    ServerParams{ addr: addr }
   }
 
   pub fn query_client_params() -> ClientParams {
+    let local_ip = get_own_ip();
     let mut stdin = stdin();
     let mut client_port_str = String::new();
     let mut server_port_str = String::new();
@@ -42,14 +48,21 @@ mod params {
     let _ = stdin.read_line(&mut server_port_str);
     println!("Server Addr (localhost): ");
     let _ = stdin.read_line(&mut server_addr_str);
+
     client_port_str = default_string(client_port_str.trim(), "4444");
     server_port_str = default_string(server_port_str.trim(), "5555");
-    server_addr_str = translate_localhost(&default_string(server_addr_str.trim(), "localhost"));
+    server_addr_str = get_ip(&default_string(server_addr_str.trim(), "localhost")).to_string();
+
+    let full_client_addr_string: String = local_ip.to_string() + ":" + &client_port_str;
+    let full_client_addr: &str = &full_client_addr_string;
+    let full_server_addr_string: String = server_addr_str + ":" + &server_port_str;
+
+    let addr: SocketAddr = SocketAddr::from_str(&full_client_addr_string).unwrap();
+    let server_addr: SocketAddr = SocketAddr::from_str(&full_server_addr_string).unwrap();
 
     ClientParams {
-      client_port: i32::from_str_radix(&client_port_str.trim(), 10).unwrap(),
-      server_port: i32::from_str_radix(&server_port_str.trim(), 10).unwrap(),
-      server_addr: server_addr_str.trim().to_string()
+      addr: addr,
+      server_addr: server_addr
     }
   }
 }
