@@ -26,7 +26,7 @@ mod udp {
     // Sending messages
     let send_handle = thread::spawn (move || {
       loop {
-        send_rx.recv()
+        let _ = send_rx.recv()
           .map(add_payload_marker)
           .map(|(socket_addr, payload)| socket.send_to(payload.as_slice(), socket_addr));
       }

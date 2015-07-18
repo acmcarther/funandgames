@@ -37,7 +37,7 @@ mod app_net {
     let full_payload_bytes: Vec<u8> = name_bytes.into_iter().cloned().chain(payload_bytes.iter().cloned()).collect();
     server_state.users.values().map (|socket_addr| {
       if from_socket_addr_str != socket_addr.to_string() {
-        send_tx.send((socket_addr.clone(), full_payload_bytes.clone()));
+        let _ = send_tx.send((socket_addr.clone(), full_payload_bytes.clone()));
       }
     }).collect::<Vec<()>>();
   }

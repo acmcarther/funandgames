@@ -59,13 +59,13 @@ fn server() {
   let chat_handle = thread::spawn (move || {
     loop {
       // TODO: don't broadcast msg we don't care about, rather than send options
-      recv_rx.recv()
+      let _ = recv_rx.recv()
         .map_err(|err| println!("Recv Err: {}", err))
         .map(|opt| opt.map(|payload| add_user_and_broadcast(&mut server_state, payload, &send_tx)));
     }
   });
 
-  let results = vec![
+  let _ = vec![
     chat_handle.join(),
     send_handle.join(),
     recv_handle.join()
@@ -94,21 +94,22 @@ fn client() {
     println!("type your messages");
     loop {
       let mut message = String::new();
-      stdin.read_line(&mut message);
-      send_tx.send((server_addr, message.as_bytes().into_iter().cloned().collect())).unwrap();
+      let _ = stdin.read_line(&mut message);
+      let _ = send_tx.send((server_addr, message.as_bytes().into_iter().cloned().collect())).unwrap();
     }
   });
 
   let stdout_handle = thread::spawn (move || {
     loop {
-      recv_rx.recv()
+      let _ = recv_rx.recv()
         .map_err(|err| println!("Recv Err: {}", err))
         .map(|res| res.map(stringify_body))
-        .map(|res| res.map(|(socket_addr, string)| println!("{}", string.trim())));
+        .map(|res| res.map(|(_, string)| println!("{}", string.trim())));
     }
   });
 
-  let results = vec![
+  let _ = vec![
+    stdout_handle.join(),
     stdin_handle.join(),
     send_handle.join(),
     recv_handle.join(),

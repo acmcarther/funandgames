@@ -25,7 +25,7 @@ mod params {
     let mut stdin = stdin();
     let mut port_str = String::new();
     println!("Server Port (5555): ");
-    stdin.read_line(&mut port_str);
+    let _ = stdin.read_line(&mut port_str);
     port_str = default_string(port_str.trim(), "5555");
 
     ServerParams { server_port: i32::from_str_radix(&port_str.trim(), 10).unwrap() }
@@ -37,11 +37,11 @@ mod params {
     let mut server_port_str = String::new();
     let mut server_addr_str = String::new();
     println!("Client Port (4444): ");
-    stdin.read_line(&mut client_port_str);
+    let _ = stdin.read_line(&mut client_port_str);
     println!("Server Port (5555): ");
-    stdin.read_line(&mut server_port_str);
+    let _ = stdin.read_line(&mut server_port_str);
     println!("Server Addr (localhost): ");
-    stdin.read_line(&mut server_addr_str);
+    let _ = stdin.read_line(&mut server_addr_str);
     client_port_str = default_string(client_port_str.trim(), "4444");
     server_port_str = default_string(server_port_str.trim(), "5555");
     server_addr_str = translate_localhost(&default_string(server_addr_str.trim(), "localhost"));

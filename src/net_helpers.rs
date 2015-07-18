@@ -12,9 +12,9 @@ mod net_helpers {
         .unwrap().next()
         .unwrap().unwrap().ip();
 
-    let mut stream = TcpStream::connect((external_ip, 80)).unwrap();
+    let stream = TcpStream::connect((external_ip, 80)).unwrap();
     let local_addr = stream.local_addr().unwrap();
-    stream.shutdown(Shutdown::Both);
+    let _ = stream.shutdown(Shutdown::Both);
     local_addr.ip()
   }
 }
