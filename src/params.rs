@@ -54,7 +54,6 @@ mod params {
     server_addr_str = get_ip(&default_string(server_addr_str.trim(), "localhost")).to_string();
 
     let full_client_addr_string: String = local_ip.to_string() + ":" + &client_port_str;
-    let full_client_addr: &str = &full_client_addr_string;
     let full_server_addr_string: String = server_addr_str + ":" + &server_port_str;
 
     let addr: SocketAddr = SocketAddr::from_str(&full_client_addr_string).unwrap();

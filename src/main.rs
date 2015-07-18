@@ -3,11 +3,10 @@
 #![feature(ip_addr)]
 use std::env;
 use std::io::stdin;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::UdpSocket;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::collections::HashMap;
-use std::str::FromStr;
 
 mod app_net;
 mod errors;
@@ -52,7 +51,6 @@ fn server() {
 
   let chat_handle = thread::spawn (move || {
     loop {
-      // TODO: don't broadcast msg we don't care about, rather than send options
       let _ = recv_rx.recv()
         .map_err(|err| println!("Recv Err: {}", err))
         .map(|opt| opt.map(|payload| add_user_and_broadcast(&mut server_state, payload, &send_tx)));
