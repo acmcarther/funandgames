@@ -9,8 +9,9 @@ mod udp {
   use std::thread::JoinHandle;
   use std::thread;
 
-  use constants::{UDP_MARKER};
   use types::SocketPayload;
+
+  pub const UDP_MARKER: &'static [u8] = b"012";
 
   type RawSocketPayload = (SocketAddr, Vec<u8>);
 

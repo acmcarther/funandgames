@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 mod app_net;
-mod constants;
 mod errors;
 mod net_helpers;
 mod params;
