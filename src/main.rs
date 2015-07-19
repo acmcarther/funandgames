@@ -7,6 +7,8 @@ use std::thread;
 use std::collections::HashMap;
 use std::sync::mpsc::{Sender, Receiver};
 
+use time::PreciseTime;
+
 extern crate time;
 
 mod app_net;
@@ -18,15 +20,19 @@ mod str_ops;
 mod types;
 mod udp;
 
-use app_net::{broadcast, stringify_body};
+use app_net::{
+  identify_payload,
+  handle_payload,
+  stringify_body
+};
 use params::{
   query_server_params,
   query_client_params,
 };
-use types::{NetMode, ServerState, SocketPayload};
+use types::{message_type_to_byte, MessageType, NetMode, ServerState, SocketPayload, IdentifiedPayload};
 use str_ops::{net_mode_from_string};
 use udp::start_network;
-use connected_udp::handle_connections;
+use connected_udp::{handle_connections, cull_connections};
 
 fn main() {
   let second_arg = env::args().nth(1);
@@ -49,13 +55,23 @@ fn server() {
   let recv_rx: Receiver<SocketPayload> = network.recv_channel;
 
   let chat_handle = thread::spawn (move || {
+    let mut last_call = PreciseTime::now();
     loop {
       let _ = recv_rx.recv()
         .map(|payload| handle_connections(payload, &mut server_state.users))
-        .map(|payload| broadcast(&server_state, payload, &send_tx));
+
+        .map(identify_payload)
+        .map(|possible_payload| {
+          possible_payload.map(|payload| handle_payload(&server_state, payload, &send_tx))
+        });
+
+      if last_call.to(PreciseTime::now()).num_seconds() > 2 {
+        cull_connections(&mut server_state.users);
+      }
     }
   });
 
+  // Block main thread forever
   let _ = vec![
     chat_handle.join(),
     network.thread_handles.send_handle.join(),
@@ -80,7 +96,9 @@ fn client() {
     loop {
       let mut message = String::new();
       let _ = stdin.read_line(&mut message);
-      let _ = send_tx.send((server_addr, message.as_bytes().into_iter().cloned().collect())).unwrap();
+      let mut msg: Vec<u8> = message.as_bytes().into_iter().cloned().collect();
+      msg.insert(0, message_type_to_byte(MessageType::Message));
+      let _ = send_tx.send((server_addr, msg)).unwrap();
     }
   });
 
@@ -93,6 +111,7 @@ fn client() {
     }
   });
 
+  // Block main thread forever
   let _ = vec![
     stdout_handle.join(),
     stdin_handle.join(),

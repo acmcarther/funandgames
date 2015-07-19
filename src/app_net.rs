@@ -1,5 +1,6 @@
 pub use self::app_net::{
-  broadcast,
+  handle_payload,
+  identify_payload,
   stringify_body,
 };
 
@@ -12,17 +13,37 @@ mod app_net {
   use types::{
     ServerState,
     SocketPayload,
+    IdentifiedPayload,
     StringPayload,
+    MessageType,
+    byte_to_message_type
   };
 
-  pub fn broadcast(server_state: &ServerState, payload: SocketPayload, send_tx: &Sender<SocketPayload>) {
-    let (socket_addr, _) = payload;
-    reply_all(server_state, payload, send_tx);
+  pub fn identify_payload(payload: SocketPayload) -> Option<IdentifiedPayload> {
+    let (socket_addr, mut byte_payload) = payload;
+
+    byte_to_message_type(byte_payload[0])
+      .map(|message_type| {
+        byte_payload.remove(0);
+        (socket_addr, message_type, byte_payload)
+       })
   }
 
-  fn reply_all(server_state: &ServerState, payload: SocketPayload, send_tx: &Sender<SocketPayload>) {
-    let (from_socket_addr, payload_bytes) = payload;
-    let from_socket_addr_str = from_socket_addr.to_string();
+  pub fn handle_payload(server_state: &ServerState, payload: IdentifiedPayload, send_tx: &Sender<SocketPayload>) {
+    let (socket_addr, message_type, byte_payload) = payload;
+    match message_type {
+      MessageType::Message => handle_message(server_state, &socket_addr, &byte_payload, send_tx),
+      _ => ()
+    }
+  }
+
+  fn handle_message(server_state: &ServerState, origin: &SocketAddr, payload_bytes: &Vec<u8>, send_tx: &Sender<SocketPayload>) {
+    reply_all(server_state, origin, payload_bytes, send_tx);
+  }
+
+
+  fn reply_all(server_state: &ServerState, origin: &SocketAddr, payload_bytes: &Vec<u8>, send_tx: &Sender<SocketPayload>) {
+    let from_socket_addr_str = origin.to_string();
     let name_with_colon = from_socket_addr_str.clone() + ": ";
     let name_bytes = name_with_colon.as_bytes();
     let full_payload_bytes: Vec<u8> = name_bytes.into_iter().cloned().chain(payload_bytes.iter().cloned()).collect();

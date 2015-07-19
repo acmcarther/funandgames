@@ -1,5 +1,3 @@
-extern crate time;
-
 pub use self::connected_udp::{
   ConnectionTable,
   Connection,
@@ -38,6 +36,7 @@ mod connected_udp {
         .collect();
 
     for socket_addr in stale_connections {
+      println!("culling connection: {}", socket_addr);
       connections.remove(&socket_addr);
     }
   }
