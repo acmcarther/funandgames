@@ -4,31 +4,47 @@ pub use self::udp::{
 
 mod udp {
   use std::net::{SocketAddr, UdpSocket};
-  use std::sync::mpsc::{Sender, Receiver};
-  use std::io::Error;
+  use std::sync::mpsc::{channel, Sender, Receiver};
   use std::thread::JoinHandle;
   use std::thread;
 
+  use errors::{socket_bind_err, socket_recv_err, socket_send_err};
   use types::SocketPayload;
+
+  pub struct IOHandles {
+    pub send_handle: JoinHandle<()>,
+    pub recv_handle: JoinHandle<()>
+  }
+
+  pub struct Network {
+    pub send_channel: Sender<SocketPayload>,
+    pub recv_channel: Receiver<SocketPayload>,
+    pub thread_handles: IOHandles
+  }
 
   pub const UDP_MARKER: &'static [u8] = b"012";
 
   type RawSocketPayload = (SocketAddr, Vec<u8>);
 
-  pub fn start_network(
-    socket: UdpSocket,
-    send_rx: Receiver<SocketPayload>,
-    recv_tx: Sender<Result<SocketPayload, Error>>,
-    ) -> (JoinHandle< ()>, JoinHandle<()>) {
+  pub fn start_network(addr: SocketAddr) -> Network {
 
-    let recv_socket = socket.try_clone().unwrap();
+    let (send_tx, send_rx) = channel();
+    let (recv_tx, recv_rx) = channel();
+
+    let send_socket =
+      UdpSocket::bind(addr)
+        .map_err(socket_bind_err)
+        .unwrap();
+
+    let recv_socket = send_socket.try_clone().unwrap();
 
     // Sending messages
     let send_handle = thread::spawn (move || {
       loop {
         let _ = send_rx.recv()
           .map(add_payload_marker)
-          .map(|(socket_addr, payload)| socket.send_to(payload.as_slice(), socket_addr));
+          .map(|(socket_addr, payload)| send_socket.send_to(payload.as_slice(), socket_addr))
+          .map(|send_res| send_res.map_err(socket_send_err));
       }
     });
 
@@ -36,20 +52,16 @@ mod udp {
     let recv_handle = thread::spawn (move || {
       loop {
         let mut buf = [0; 256];
-        let result = recv_socket.recv_from(&mut buf)
+        let _ = recv_socket.recv_from(&mut buf)
+          .map_err(socket_recv_err)
           .map(|(_, socket_addr)| (socket_addr, buf.to_vec()))
           .map(starts_with_marker)
-          .map(|payload| payload.map(strip_marker));
-
-        // Invert the monads, send if Some(res) or Err
-        match result {
-          Ok(opt) => opt.map (|val| Ok(val)),
-          Err(err) => Some(Err(err))
-        }.map(|res| recv_tx.send(res));
+          .map(|payload| payload.map(strip_marker))
+          .map(|payload| payload.map(|val| recv_tx.send(val)));
       }
     });
-
-    (send_handle, recv_handle)
+    let io_handles = IOHandles { send_handle: send_handle, recv_handle: recv_handle };
+    Network { send_channel: send_tx, recv_channel: recv_rx, thread_handles: io_handles }
   }
 
   fn starts_with_marker(payload: RawSocketPayload) -> Option<RawSocketPayload> {
