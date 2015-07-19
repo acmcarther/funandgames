@@ -9,6 +9,8 @@ mod types {
   use std::collections::HashMap;
   use std::net::SocketAddr;
 
+  use connected_udp::ConnectionTable;
+
   pub type SocketPayload = (SocketAddr, Vec<u8>);
   pub type StringPayload = (SocketAddr, String);
 
@@ -19,6 +21,6 @@ mod types {
   }
 
   pub struct ServerState {
-    pub users: HashMap<String, SocketAddr>
+    pub users: ConnectionTable
   }
 }

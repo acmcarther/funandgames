@@ -7,7 +7,10 @@ use std::thread;
 use std::collections::HashMap;
 use std::sync::mpsc::{Sender, Receiver};
 
+extern crate time;
+
 mod app_net;
+mod connected_udp;
 mod errors;
 mod net_helpers;
 mod params;
@@ -15,7 +18,7 @@ mod str_ops;
 mod types;
 mod udp;
 
-use app_net::{add_user_and_broadcast, stringify_body};
+use app_net::{broadcast, stringify_body};
 use params::{
   query_server_params,
   query_client_params,
@@ -23,6 +26,7 @@ use params::{
 use types::{NetMode, ServerState, SocketPayload};
 use str_ops::{net_mode_from_string};
 use udp::start_network;
+use connected_udp::handle_connections;
 
 fn main() {
   let second_arg = env::args().nth(1);
@@ -46,8 +50,9 @@ fn server() {
 
   let chat_handle = thread::spawn (move || {
     loop {
-      let socket_payload = recv_rx.recv().unwrap();
-      add_user_and_broadcast(&mut server_state, socket_payload, &send_tx);
+      let _ = recv_rx.recv()
+        .map(|payload| handle_connections(payload, &mut server_state.users))
+        .map(|payload| broadcast(&server_state, payload, &send_tx));
     }
   });
 
