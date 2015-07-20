@@ -15,6 +15,7 @@ extern crate byteorder;
 mod app_net;
 mod connected_udp;
 mod errors;
+mod helpers;
 mod net_helpers;
 mod params;
 mod str_ops;
