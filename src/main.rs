@@ -108,8 +108,7 @@ fn client() {
     loop {
       let socket_payload = recv_rx.recv().unwrap();
       let string_payload = stringify_body(socket_payload);
-      let (_, string)  = string_payload;
-      println!("{}", string.trim());
+      println!("{}", string_payload.msg.trim());
     }
   });
 

@@ -25,14 +25,13 @@ mod app_net {
     byte_to_message_type(bytes[0])
       .map(|message_type| {
         bytes.remove(0);
-        (addr, message_type, bytes)
+        IdentifiedPayload {addr: addr, msg_type: message_type, bytes: bytes }
        })
   }
 
   pub fn handle_payload(server_state: &ServerState, payload: IdentifiedPayload, send_tx: &Sender<SocketPayload>) {
-    let (socket_addr, message_type, byte_payload) = payload;
-    match message_type {
-      MessageType::Message => handle_message(server_state, &socket_addr, &byte_payload, send_tx),
+    match payload.msg_type {
+      MessageType::Message => handle_message(server_state, &payload.addr, &payload.bytes, send_tx),
       _ => ()
     }
   }
@@ -56,6 +55,6 @@ mod app_net {
 
   pub fn stringify_body(payload: SocketPayload) -> StringPayload {
     let full_msg = String::from_utf8(payload.bytes).unwrap();
-    (payload.addr, full_msg.trim_matches('\0').to_string())
+    StringPayload { addr: payload.addr, msg: full_msg.trim_matches('\0').to_string() }
   }
 }

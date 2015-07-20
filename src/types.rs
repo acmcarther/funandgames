@@ -20,8 +20,16 @@ mod types {
     pub bytes: Vec<u8>
   }
 
-  pub type StringPayload = (SocketAddr, String);
-  pub type IdentifiedPayload = (SocketAddr, MessageType, Vec<u8>);
+  pub struct StringPayload {
+    pub addr: SocketAddr,
+    pub msg: String
+  }
+
+  pub struct IdentifiedPayload {
+    pub addr: SocketAddr,
+    pub msg_type: MessageType,
+    pub bytes: Vec<u8>
+  }
 
   #[derive(Debug)]
   pub enum MessageType {
