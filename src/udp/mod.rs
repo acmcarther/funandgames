@@ -2,6 +2,9 @@ pub use self::udp::{
   start_network,
 };
 
+mod constants;
+mod types;
+
 mod udp {
   use std::net::{SocketAddr, UdpSocket};
   use std::sync::mpsc::{channel, Sender, Receiver};
@@ -10,21 +13,13 @@ mod udp {
 
   use errors::{socket_bind_err, socket_recv_err, socket_send_err};
   use types::SocketPayload;
+  use udp::types::{
+    IOHandles,
+    Network,
+    RawSocketPayload
+  };
+  use udp::constants::UDP_MARKER;
 
-  pub struct IOHandles {
-    pub send_handle: JoinHandle<()>,
-    pub recv_handle: JoinHandle<()>
-  }
-
-  pub struct Network {
-    pub send_channel: Sender<SocketPayload>,
-    pub recv_channel: Receiver<SocketPayload>,
-    pub thread_handles: IOHandles
-  }
-
-  pub const UDP_MARKER: &'static [u8] = b"012";
-
-  type RawSocketPayload = (SocketAddr, Vec<u8>);
 
   pub fn start_network(addr: SocketAddr) -> Network {
 
