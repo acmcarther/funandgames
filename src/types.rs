@@ -10,9 +10,7 @@ pub use self::types::{
 };
 
 mod types {
-  use std::collections::HashMap;
   use std::net::SocketAddr;
-
   use connected_udp::ConnectionTable;
 
   pub struct SocketPayload {

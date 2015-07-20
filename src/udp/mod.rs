@@ -7,8 +7,7 @@ mod types;
 
 mod udp {
   use std::net::{SocketAddr, UdpSocket};
-  use std::sync::mpsc::{channel, Sender, Receiver};
-  use std::thread::JoinHandle;
+  use std::sync::mpsc::channel;
   use std::thread;
 
   use errors::{socket_bind_err, socket_recv_err, socket_send_err};
@@ -38,7 +37,7 @@ mod udp {
       loop {
         let _ = send_rx.recv()
           .map(add_payload_marker)
-          .map(|(socket_addr, payload)| send_socket.send_to(payload.as_slice(), socket_addr))
+          .map(|raw_payload| send_socket.send_to(raw_payload.bytes.as_slice(), raw_payload.addr))
           .map(|send_res| send_res.map_err(socket_send_err));
       }
     });
@@ -49,7 +48,7 @@ mod udp {
         let mut buf = [0; 256];
         let _ = recv_socket.recv_from(&mut buf)
           .map_err(socket_recv_err)
-          .map(|(_, socket_addr)| (socket_addr, buf.to_vec()))
+          .map(|(_, socket_addr)| RawSocketPayload {addr: socket_addr, bytes: buf.to_vec()})
           .map(starts_with_marker)
           .map(|payload| payload.map(strip_marker))
           .map(|payload| payload.map(|val| recv_tx.send(val)));
@@ -60,9 +59,8 @@ mod udp {
   }
 
   fn starts_with_marker(payload: RawSocketPayload) -> Option<RawSocketPayload> {
-    let (socket_addr, payload) = payload;
-    if &payload[0..3] == UDP_MARKER {
-      Some((socket_addr, payload))
+    if &payload.bytes[0..3] == UDP_MARKER {
+      Some(payload)
     } else {
       None
     }
@@ -70,11 +68,10 @@ mod udp {
 
   fn add_payload_marker(payload: SocketPayload) -> RawSocketPayload {
     let marked_bytes: Vec<u8> = UDP_MARKER.into_iter().cloned().chain(payload.bytes.iter().cloned()).collect();
-    (payload.addr, marked_bytes)
+    RawSocketPayload {addr: payload.addr, bytes: marked_bytes}
   }
 
   fn strip_marker(payload: RawSocketPayload) -> SocketPayload {
-    let (socket_addr, bytes) = payload;
-    SocketPayload { addr: socket_addr, bytes: bytes[3..256].into_iter().cloned().collect() }
+    SocketPayload { addr: payload.addr, bytes: payload.bytes[3..256].into_iter().cloned().collect() }
   }
 }

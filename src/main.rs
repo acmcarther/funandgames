@@ -31,7 +31,7 @@ use params::{
   query_server_params,
   query_client_params,
 };
-use types::{message_type_to_byte, MessageType, NetMode, ServerState, SocketPayload, IdentifiedPayload};
+use types::{message_type_to_byte, MessageType, NetMode, ServerState, SocketPayload};
 use str_ops::{net_mode_from_string};
 use udp::start_network;
 use connected_udp::{handle_connections, cull_connections};
@@ -57,8 +57,9 @@ fn server() {
   let recv_rx: Receiver<SocketPayload> = network.recv_channel;
 
   let chat_handle = thread::spawn (move || {
-    let mut last_call = PreciseTime::now();
     loop {
+      let last_call = PreciseTime::now();
+
       let _ = recv_rx.recv()
         .map(|payload| handle_connections(payload, &mut server_state.users))
 

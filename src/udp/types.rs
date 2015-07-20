@@ -7,8 +7,8 @@ pub use self::types::{
 mod types {
   use std::thread::JoinHandle;
   use types::SocketPayload;
-  use std::sync::mpsc::{channel, Sender, Receiver};
-  use std::net::{SocketAddr, UdpSocket};
+  use std::sync::mpsc::{Receiver, Sender};
+  use std::net::SocketAddr;
 
   pub struct IOHandles {
     pub send_handle: JoinHandle<()>,
@@ -21,5 +21,8 @@ mod types {
     pub thread_handles: IOHandles
   }
 
-  pub type RawSocketPayload = (SocketAddr, Vec<u8>);
+  pub struct RawSocketPayload {
+    pub addr: SocketAddr,
+    pub bytes: Vec<u8>
+  }
 }

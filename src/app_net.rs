@@ -8,8 +8,6 @@ mod app_net {
   use std::sync::mpsc::Sender;
   use std::net::SocketAddr;
 
-  use time::PreciseTime;
-
   use types::{
     ServerState,
     SocketPayload,
