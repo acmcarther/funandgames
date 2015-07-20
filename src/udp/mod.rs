@@ -4,13 +4,14 @@ pub use self::udp::{
 
 mod constants;
 mod types;
+mod errors;
 
 mod udp {
   use std::net::{SocketAddr, UdpSocket};
   use std::sync::mpsc::channel;
   use std::thread;
 
-  use errors::{socket_bind_err, socket_recv_err, socket_send_err};
+  use udp::errors::{socket_bind_err, socket_recv_err, socket_send_err};
   use types::SocketPayload;
   use udp::types::{
     IOHandles,

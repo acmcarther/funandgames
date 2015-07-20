@@ -14,7 +14,6 @@ extern crate byteorder;
 
 mod app_net;
 mod connected_udp;
-mod errors;
 mod helpers;
 mod net_helpers;
 mod params;
@@ -35,6 +34,7 @@ use types::{message_type_to_byte, MessageType, NetMode, ServerState, SocketPaylo
 use str_ops::{net_mode_from_string};
 use udp::start_network;
 use connected_udp::{handle_connections, cull_connections};
+use helpers::Tappable;
 
 fn main() {
   let second_arg = env::args().nth(1);
@@ -61,8 +61,7 @@ fn server() {
       let last_call = PreciseTime::now();
 
       let _ = recv_rx.recv()
-        .map(|payload| handle_connections(payload, &mut server_state.users))
-
+        .tap(|payload| handle_connections(payload, &mut server_state.users))
         .map(identify_payload)
         .map(|possible_payload| {
           possible_payload.map(|payload| handle_payload(&server_state, payload, &send_tx))

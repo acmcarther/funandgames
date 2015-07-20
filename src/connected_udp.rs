@@ -18,9 +18,8 @@ mod connected_udp {
     pub last_contact: PreciseTime
   }
 
-  pub fn handle_connections(payload: SocketPayload, connections: &mut ConnectionTable) -> SocketPayload {
+  pub fn handle_connections(payload: &SocketPayload, connections: &mut ConnectionTable) {
     let _ = connections.insert(payload.addr.clone(), Connection { last_contact: PreciseTime::now() });
-    payload
   }
 
   pub fn cull_connections(connections: &mut ConnectionTable) {
