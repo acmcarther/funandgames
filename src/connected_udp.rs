@@ -19,11 +19,7 @@ mod connected_udp {
   }
 
   pub fn handle_connections(payload: SocketPayload, connections: &mut ConnectionTable) -> SocketPayload {
-    let (socket_addr, _) = payload;
-
-    let _ =
-      connections.insert(socket_addr.clone(), Connection { last_contact: PreciseTime::now() });
-
+    let _ = connections.insert(payload.addr.clone(), Connection { last_contact: PreciseTime::now() });
     payload
   }
 

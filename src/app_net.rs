@@ -20,12 +20,12 @@ mod app_net {
   };
 
   pub fn identify_payload(payload: SocketPayload) -> Option<IdentifiedPayload> {
-    let (socket_addr, mut byte_payload) = payload;
-
-    byte_to_message_type(byte_payload[0])
+    let mut bytes = payload.bytes;
+    let addr = payload.addr;
+    byte_to_message_type(bytes[0])
       .map(|message_type| {
-        byte_payload.remove(0);
-        (socket_addr, message_type, byte_payload)
+        bytes.remove(0);
+        (addr, message_type, bytes)
        })
   }
 
@@ -49,14 +49,13 @@ mod app_net {
     let full_payload_bytes: Vec<u8> = name_bytes.into_iter().cloned().chain(payload_bytes.iter().cloned()).collect();
     server_state.users.keys().map (|socket_addr| {
       if from_socket_addr_str != socket_addr.to_string() {
-        let _ = send_tx.send((socket_addr.clone(), full_payload_bytes.clone()));
+        let _ = send_tx.send(SocketPayload {addr: socket_addr.clone(), bytes: full_payload_bytes.clone()});
       }
     }).collect::<Vec<()>>();
   }
 
   pub fn stringify_body(payload: SocketPayload) -> StringPayload {
-    let (socket_addr, bytes) = payload;
-    let full_msg = String::from_utf8(bytes).unwrap();
-    (socket_addr, full_msg.trim_matches('\0').to_string())
+    let full_msg = String::from_utf8(payload.bytes).unwrap();
+    (payload.addr, full_msg.trim_matches('\0').to_string())
   }
 }

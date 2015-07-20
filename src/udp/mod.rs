@@ -69,13 +69,12 @@ mod udp {
   }
 
   fn add_payload_marker(payload: SocketPayload) -> RawSocketPayload {
-    let (socket_addr, payload) = payload;
-    let marked_bytes: Vec<u8> = UDP_MARKER.into_iter().cloned().chain(payload.iter().cloned()).collect();
-    (socket_addr, marked_bytes)
+    let marked_bytes: Vec<u8> = UDP_MARKER.into_iter().cloned().chain(payload.bytes.iter().cloned()).collect();
+    (payload.addr, marked_bytes)
   }
 
   fn strip_marker(payload: RawSocketPayload) -> SocketPayload {
-    let (socket_addr, payload) = payload;
-    (socket_addr, payload[3..256].into_iter().cloned().collect())
+    let (socket_addr, bytes) = payload;
+    SocketPayload { addr: socket_addr, bytes: bytes[3..256].into_iter().cloned().collect() }
   }
 }

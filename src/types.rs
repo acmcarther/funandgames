@@ -15,7 +15,11 @@ mod types {
 
   use connected_udp::ConnectionTable;
 
-  pub type SocketPayload = (SocketAddr, Vec<u8>);
+  pub struct SocketPayload {
+    pub addr: SocketAddr,
+    pub bytes: Vec<u8>
+  }
+
   pub type StringPayload = (SocketAddr, String);
   pub type IdentifiedPayload = (SocketAddr, MessageType, Vec<u8>);
 

@@ -100,7 +100,7 @@ fn client() {
       let _ = stdin.read_line(&mut message);
       let mut msg: Vec<u8> = message.as_bytes().into_iter().cloned().collect();
       msg.insert(0, message_type_to_byte(MessageType::Message));
-      let _ = send_tx.send((server_addr, msg)).unwrap();
+      let _ = send_tx.send(SocketPayload{addr: server_addr, bytes: msg}).unwrap();
     }
   });
 

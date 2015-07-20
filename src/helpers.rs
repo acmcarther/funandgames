@@ -2,7 +2,7 @@ pub use self::helpers::{
   Tappable
 };
 
-pub mod helpers {
+mod helpers {
   pub trait Tappable<T> {
     fn tap<U, F: FnOnce(&T) -> U>(self, F) -> Self;
   }
