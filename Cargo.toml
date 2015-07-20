@@ -5,3 +5,4 @@ authors = ["Alex McArther <acmcarther@gmail.com>"]
 
 [dependencies]
 time = "*"
+byteorder = "*"

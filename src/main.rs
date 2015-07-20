@@ -10,6 +10,7 @@ use std::sync::mpsc::{Sender, Receiver};
 use time::PreciseTime;
 
 extern crate time;
+extern crate byteorder;
 
 mod app_net;
 mod connected_udp;

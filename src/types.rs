@@ -15,13 +15,19 @@ mod types {
 
   use connected_udp::ConnectionTable;
 
-  pub type SocketPayload = (SocketAddr, Vec<u8>);
+  pub struct IdentifiedPayload {
+    addr: SocketAddr,
+    sequence_num: u16,
+    ack_num: u16,
+    ack_field: u32, // bitfield identifying 32 acked packets
+    message_type: MessageType,
+    payload: Vec<u8>
+  }
+
   pub type StringPayload = (SocketAddr, String);
-  pub type IdentifiedPayload = (SocketAddr, MessageType, Vec<u8>);
 
   #[derive(Debug)]
   pub enum MessageType {
-    Ack,
     KeepAlive,
     Message,
   }
@@ -38,17 +44,15 @@ mod types {
 
   pub fn message_type_to_byte(msg_type: MessageType) -> u8 {
     match msg_type {
-      MessageType::Ack => 1,
-      MessageType::KeepAlive => 2,
-      MessageType::Message => 3,
+      MessageType::KeepAlive => 1,
+      MessageType::Message => 2,
     }
   }
 
   pub fn byte_to_message_type(byte: u8) -> Option<MessageType> {
     match byte {
-      1 => Some(MessageType::Ack),
-      2 => Some(MessageType::KeepAlive),
-      3 => Some(MessageType::Message),
+      1 => Some(MessageType::KeepAlive),
+      2 => Some(MessageType::Message),
       _ => None
     }
   }
