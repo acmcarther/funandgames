@@ -1,13 +1,13 @@
 pub use self::helpers::{
-  TappableOption
+  Tappable
 };
 
 pub mod helpers {
-  pub trait TappableOption<T> {
+  pub trait Tappable<T> {
     fn tap<U, F: FnOnce(&T) -> U>(self, F) -> Self;
   }
 
-  impl<T> TappableOption<T> for Option<T> {
+  impl<T> Tappable<T> for Option<T> {
     fn tap<U, F: FnOnce(&T) -> U>(self, op: F) -> Option<T> {
       self.map(|val| {
         op(&val);
