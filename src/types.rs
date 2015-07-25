@@ -1,5 +1,6 @@
 pub use self::types::{
   SocketPayload,
+  SequencedSocketPayload,
   IdentifiedPayload,
   StringPayload,
   NetMode,
@@ -15,6 +16,12 @@ mod types {
 
   pub struct SocketPayload {
     pub addr: SocketAddr,
+    pub bytes: Vec<u8>
+  }
+
+  pub struct SequencedSocketPayload {
+    pub addr: SocketAddr,
+    pub seq_num: u16,
     pub bytes: Vec<u8>
   }
 
