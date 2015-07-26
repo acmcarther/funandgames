@@ -8,7 +8,7 @@ mod errors;
 
 mod udp {
   use std::net::{SocketAddr, UdpSocket};
-  use std::sync::mpsc::channel;
+  use std::sync::mpsc::{channel, Sender, Receiver};
   use std::thread;
 
   use udp::errors::{socket_bind_err, socket_recv_err, socket_send_err};
@@ -25,11 +25,19 @@ mod udp {
   use udp::constants::UDP_MARKER;
   use byteorder::{ByteOrder, BigEndian};
   use std::collections::HashMap;
+  use std::iter::{repeat};
+  use helpers::Tappable;
+
+  type OwnAck = (SocketAddr, u16);
+  type DroppedPacket = (SocketAddr, u16);
 
   pub fn start_network(addr: SocketAddr) -> Network {
 
     let (send_tx, send_rx) = channel();
     let (recv_tx, recv_rx) = channel();
+
+    let (ack_tx, ack_rx) = channel();
+    let (dropped_tx, dropped_rx) = channel();
 
     let send_socket =
       UdpSocket::bind(addr)
@@ -42,6 +50,8 @@ mod udp {
     let send_handle = thread::spawn (move || {
       let mut seq_num_map = HashMap::new();
       loop {
+        let acks = try_recv_all(&ack_rx);
+        let dropped_packets = try_recv_all(&dropped_rx);
         let _ = send_rx.recv()
           .map(|raw_payload: SocketPayload| {
             let addr = raw_payload.addr.clone();
@@ -62,14 +72,20 @@ mod udp {
     let recv_handle = thread::spawn (move || {
       loop {
         let mut buf = [0; 256];
-        let _ = recv_socket.recv_from(&mut buf)
+        let payload_result = recv_socket.recv_from(&mut buf)
           .map_err(socket_recv_err)
           .map(|(_, socket_addr)| RawSocketPayload {addr: socket_addr, bytes: buf.to_vec()})
-          .map(starts_with_marker)
-          .map(|payload| payload.map(strip_marker))
-          .map(|payload| payload.map(strip_sequence))
-          .map(|payload| payload.map(strip_acks))
-          .map(|payload| payload.map(|val| recv_tx.send(val)));
+          .map(starts_with_marker);
+
+        let _ = payload_result.map(|possible_payload| {
+          possible_payload
+            .map(strip_marker)
+            .map(strip_sequence)
+            .map(strip_acks)
+            .tap(|payload| send_acks(&payload, &ack_tx))
+            .tap(|payload| identify_dropped_packets(&payload, &dropped_tx))
+            .map(|payload| recv_tx.send(payload))
+        });
       }
     });
     let io_handles = IOHandles { send_handle: send_handle, recv_handle: recv_handle };
@@ -138,5 +154,16 @@ mod udp {
     println!("ack_num: {}", ack_num);
     println!("ack_field: {}", ack_field);
     SocketPayload { addr: payload.addr, bytes: payload.bytes[6..251].into_iter().cloned().collect() }
+  }
+
+  fn send_acks(payload: &SocketPayload, ack_tx: &Sender<OwnAck>) {
+    ack_tx.send((payload.addr.clone(), 5));
+  }
+
+  fn try_recv_all<T>(ack_rx: &Receiver<T>) -> Vec<T> {
+    repeat(()).map(|_| ack_rx.try_recv().ok())
+      .take_while(|x| x.is_some())
+      .map(|x| x.unwrap())
+      .collect()
   }
 }
