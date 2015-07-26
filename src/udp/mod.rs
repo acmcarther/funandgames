@@ -22,12 +22,15 @@ mod udp {
     Network,
     RawSocketPayload
   };
-  use udp::constants::UDP_MARKER;
+  use udp::constants::{
+    UDP_MARKER,
+    PACKET_DROP_TIME
+  };
   use byteorder::{ByteOrder, BigEndian};
   use std::collections::HashMap;
   use std::iter::{repeat};
   use helpers::Tappable;
-  use time::PreciseTime;
+  use time::{Duration, PreciseTime};
 
   type OwnAcks = (SocketAddr, u16, u32);
   type DroppedPacket = (SocketAddr, u16);
@@ -38,7 +41,7 @@ mod udp {
     let (recv_tx, recv_rx) = channel();
 
     let (send_attempted_tx, send_attempted_rx) = channel();
-    //let (dropped_packet_tx, dropped_packet_rx) = channel();
+    let (dropped_packet_tx, dropped_packet_rx) = channel();
     //let (received_tx, received_rx) = channel();
 
     let send_socket =
@@ -53,7 +56,7 @@ mod udp {
       let mut seq_num_map = HashMap::new();
       loop {
         //let acks = try_recv_all(&ack_rx);
-        //let dropped_packets = try_recv_all(&dropped_packet_rx);
+        let dropped_packets = try_recv_all(&dropped_packet_rx);
         let _ = send_rx.recv()
           .map(|raw_payload: SocketPayload| {
             let addr = raw_payload.addr.clone();
@@ -76,6 +79,28 @@ mod udp {
       let mut packets_awaiting_ack = HashMap::new();
       loop {
         let mut buf = [0; 256];
+
+        let now = PreciseTime::now();
+        // Notify send thread of dropped packets
+        //   Get keys first to sate the borrow checker
+        let dropped_packet_keys: Vec<(SocketAddr, u16)> =
+          packets_awaiting_ack.iter()
+            .filter(|&(_, &(_, timestamp))| {
+              let timestamp: PreciseTime = timestamp; // Compiler why?
+              let time_elapsed: Duration = timestamp.to(now);
+              time_elapsed.num_seconds() > PACKET_DROP_TIME
+            })
+            .map(|(key, &(_, _))| {
+              let key: &(SocketAddr, u16) = key; // Compiler why?
+              key.clone()
+            }).collect();
+
+        dropped_packet_keys.iter()
+          .map(|key| packets_awaiting_ack.remove(&key))
+          .filter(|result| result.is_some())
+          .map(|result| result.unwrap())
+          .map(|(packet, _)| {let _ = dropped_packet_tx.send(packet);}).collect::<Vec<()>>(); // TODO: Remove collect
+
 
         // Add all new sent packets packets_awaiting_ack
         try_recv_all(&send_attempted_rx)
