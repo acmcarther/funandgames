@@ -16,7 +16,7 @@ mod app_net {
     byte_to_message_type
   };
 
-  use udp::types::SocketPayload;
+  use game_udp::types::SocketPayload;
 
   pub fn identify_payload(payload: SocketPayload) -> Option<IdentifiedPayload> {
     let mut bytes = payload.bytes;

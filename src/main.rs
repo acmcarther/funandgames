@@ -1,4 +1,3 @@
-#![feature(convert)]
 #![feature(lookup_host)]
 #![feature(ip_addr)]
 use std::env;
@@ -11,6 +10,7 @@ use time::PreciseTime;
 
 extern crate time;
 extern crate tap;
+extern crate game_udp;
 extern crate byteorder;
 
 mod app_net;
@@ -19,7 +19,6 @@ mod net_helpers;
 mod params;
 mod str_ops;
 mod types;
-mod udp;
 
 use app_net::{
   identify_payload,
@@ -32,8 +31,8 @@ use params::{
 };
 use types::{message_type_to_byte, MessageType, NetMode, ServerState};
 use str_ops::{net_mode_from_string};
-use udp::types::SocketPayload;
-use udp::start_network;
+use game_udp::types::SocketPayload;
+use game_udp::start_network;
 use connected_udp::{handle_connections, cull_connections};
 use tap::Tappable;
 
