@@ -14,7 +14,8 @@ mod udp {
   use udp::errors::{socket_bind_err, socket_recv_err, socket_send_err};
   use types::{
     SocketPayload,
-    SequencedSocketPayload
+    SequencedSocketPayload,
+    SequencedAckedSocketPayload
   };
   use udp::types::{
     IOHandles,
@@ -47,6 +48,10 @@ mod udp {
             (raw_payload, increment_seq_number(&mut seq_num_map, addr))
           })
           .map(|(raw_payload, seq_num)| add_sequence_number(raw_payload, seq_num))
+          .map(|raw_payload: SequencedSocketPayload| {
+            (raw_payload, 5, 5) // Fake ack_num for now
+          })
+          .map(|(payload, ack_num, ack_field)| add_acks(payload, ack_num, ack_field))
           .map(serialize)
           .map(|raw_payload: RawSocketPayload| send_socket.send_to(raw_payload.bytes.as_slice(), raw_payload.addr))
           .map(|send_res| send_res.map_err(socket_send_err));
@@ -63,6 +68,7 @@ mod udp {
           .map(starts_with_marker)
           .map(|payload| payload.map(strip_marker))
           .map(|payload| payload.map(strip_sequence))
+          .map(|payload| payload.map(strip_acks))
           .map(|payload| payload.map(|val| recv_tx.send(val)));
       }
     });
@@ -88,12 +94,28 @@ mod udp {
     SequencedSocketPayload { addr: payload.addr, seq_num: sequence_num, bytes: payload.bytes }
   }
 
-  fn serialize(payload: SequencedSocketPayload) -> RawSocketPayload {
+  fn add_acks(payload: SequencedSocketPayload, ack_num: u16, ack_field: u32) -> SequencedAckedSocketPayload {
+    SequencedAckedSocketPayload {
+      addr: payload.addr,
+      seq_num: payload.seq_num,
+      ack_num: ack_num,
+      ack_field: ack_field,
+      bytes: payload.bytes
+    }
+  }
+
+  fn serialize(payload: SequencedAckedSocketPayload) -> RawSocketPayload {
     let mut sequence_num_bytes = [0; 2];
+    let mut ack_num_bytes = [0; 2];
+    let mut ack_field_bytes = [0; 4];
     BigEndian::write_u16(&mut sequence_num_bytes, payload.seq_num);
+    BigEndian::write_u16(&mut ack_num_bytes, payload.ack_num);
+    BigEndian::write_u32(&mut ack_field_bytes, payload.ack_field);
     let marked_and_seq_bytes: Vec<u8> =
       UDP_MARKER.into_iter().cloned()
         .chain(sequence_num_bytes.iter().cloned())
+        .chain(ack_num_bytes.iter().cloned())
+        .chain(ack_field_bytes.iter().cloned())
         .chain(payload.bytes.iter().cloned()).collect();
     RawSocketPayload {addr: payload.addr, bytes: marked_and_seq_bytes}
   }
@@ -107,5 +129,14 @@ mod udp {
     let seq_num = BigEndian::read_u16(&payload.bytes[0..2]);
     println!("seq_num: {}", seq_num);
     SocketPayload { addr: payload.addr, bytes: payload.bytes[2..253].into_iter().cloned().collect() }
+  }
+
+  fn strip_acks(payload: SocketPayload) -> SocketPayload {
+    // TODO: Use this value
+    let ack_num = BigEndian::read_u16(&payload.bytes[0..2]);
+    let ack_field = BigEndian::read_u32(&payload.bytes[2..6]);
+    println!("ack_num: {}", ack_num);
+    println!("ack_field: {}", ack_field);
+    SocketPayload { addr: payload.addr, bytes: payload.bytes[6..251].into_iter().cloned().collect() }
   }
 }
