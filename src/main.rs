@@ -4,7 +4,7 @@ use std::env;
 use std::io::stdin;
 use std::thread;
 use std::collections::HashMap;
-use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc::{channel, Sender, Receiver};
 
 use time::PreciseTime;
 
@@ -91,6 +91,7 @@ fn client() {
 
   let send_tx: Sender<SocketPayload> = network.send_channel;
   let recv_rx: Receiver<SocketPayload> = network.recv_channel;
+  let (stdin_tx, stdin_rx) = channel();
 
   let stdin_handle = thread::spawn (move || {
     let mut stdin = stdin();
@@ -98,9 +99,24 @@ fn client() {
     loop {
       let mut message = String::new();
       let _ = stdin.read_line(&mut message);
-      let mut msg: Vec<u8> = message.as_bytes().into_iter().cloned().collect();
-      msg.insert(0, message_type_to_byte(MessageType::Message));
-      let _ = send_tx.send(SocketPayload{addr: server_addr, bytes: msg}).unwrap();
+      let _ = stdin_tx.send(message);
+    }
+  });
+
+  let send_handle = thread::spawn (move || {
+    let mut last_heartbeat = PreciseTime::now();
+    loop {
+      thread::sleep_ms(100);
+      let possible_chat = stdin_rx.try_recv().ok();
+      possible_chat.map (|message| {
+        let mut msg: Vec<u8> = message.as_bytes().into_iter().cloned().collect();
+        msg.insert(0, message_type_to_byte(MessageType::Message));
+        let _ = send_tx.send(SocketPayload{addr: server_addr, bytes: msg}).unwrap();
+      });
+      if last_heartbeat.to(PreciseTime::now()).num_seconds() >= 1 {
+        let _ = send_tx.send(SocketPayload{addr: server_addr, bytes: vec![message_type_to_byte(MessageType::KeepAlive)]}).unwrap();
+        last_heartbeat = PreciseTime::now();
+      }
     }
   });
 
@@ -116,6 +132,7 @@ fn client() {
   let _ = vec![
     stdout_handle.join(),
     stdin_handle.join(),
+    send_handle.join(),
     network.thread_handles.send_handle.join(),
     network.thread_handles.recv_handle.join(),
   ];
