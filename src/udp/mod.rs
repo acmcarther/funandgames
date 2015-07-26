@@ -2,8 +2,8 @@ pub use self::udp::{
   start_network,
 };
 
+pub mod types;
 mod constants;
-mod types;
 mod errors;
 
 mod udp {
@@ -12,16 +12,14 @@ mod udp {
   use std::thread;
 
   use udp::errors::{socket_bind_err, socket_recv_err, socket_send_err};
-  use types::{
-    SocketPayload,
-    SequencedSocketPayload,
-    SequencedAckedSocketPayload
-  };
   use udp::types::{
     IOHandles,
     PeerAcks,
     Network,
-    RawSocketPayload
+    RawSocketPayload,
+    SocketPayload,
+    SequencedSocketPayload,
+    SequencedAckedSocketPayload
   };
   use udp::constants::{
     UDP_MARKER,

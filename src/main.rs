@@ -30,8 +30,9 @@ use params::{
   query_server_params,
   query_client_params,
 };
-use types::{message_type_to_byte, MessageType, NetMode, ServerState, SocketPayload};
+use types::{message_type_to_byte, MessageType, NetMode, ServerState};
 use str_ops::{net_mode_from_string};
+use udp::types::SocketPayload;
 use udp::start_network;
 use connected_udp::{handle_connections, cull_connections};
 use helpers::Tappable;

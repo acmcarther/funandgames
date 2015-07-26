@@ -10,12 +10,13 @@ mod app_net {
 
   use types::{
     ServerState,
-    SocketPayload,
     IdentifiedPayload,
     StringPayload,
     MessageType,
     byte_to_message_type
   };
+
+  use udp::types::SocketPayload;
 
   pub fn identify_payload(payload: SocketPayload) -> Option<IdentifiedPayload> {
     let mut bytes = payload.bytes;

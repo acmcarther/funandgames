@@ -10,7 +10,7 @@ mod connected_udp {
   use std::collections::HashMap;
   use time::PreciseTime;
 
-  use types::SocketPayload;
+  use udp::types::SocketPayload;
 
   pub type ConnectionTable = HashMap<SocketAddr, Connection>;
 

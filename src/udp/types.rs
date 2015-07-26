@@ -2,12 +2,14 @@ pub use self::types::{
   IOHandles,
   Network,
   PeerAcks,
-  RawSocketPayload
+  RawSocketPayload,
+  SocketPayload,
+  SequencedSocketPayload,
+  SequencedAckedSocketPayload,
 };
 
 mod types {
   use std::thread::JoinHandle;
-  use types::SocketPayload;
   use std::sync::mpsc::{Receiver, Sender};
   use std::net::SocketAddr;
 
@@ -33,4 +35,27 @@ mod types {
     pub addr: SocketAddr,
     pub bytes: Vec<u8>
   }
+
+  #[derive(Clone)]
+  pub struct SocketPayload {
+    pub addr: SocketAddr,
+    pub bytes: Vec<u8>
+  }
+
+  #[derive(Clone)]
+  pub struct SequencedSocketPayload {
+    pub addr: SocketAddr,
+    pub seq_num: u16,
+    pub bytes: Vec<u8>
+  }
+
+  #[derive(Clone)]
+  pub struct SequencedAckedSocketPayload {
+    pub addr: SocketAddr,
+    pub seq_num: u16,
+    pub ack_num: u16,
+    pub ack_field: u32,
+    pub bytes: Vec<u8>
+  }
+
 }

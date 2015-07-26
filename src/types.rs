@@ -1,7 +1,4 @@
 pub use self::types::{
-  SocketPayload,
-  SequencedSocketPayload,
-  SequencedAckedSocketPayload,
   IdentifiedPayload,
   StringPayload,
   NetMode,
@@ -16,34 +13,6 @@ mod types {
   use connected_udp::ConnectionTable;
 
   #[derive(Clone)]
-  pub struct SocketPayload {
-    pub addr: SocketAddr,
-    pub bytes: Vec<u8>
-  }
-
-  #[derive(Clone)]
-  pub struct SequencedSocketPayload {
-    pub addr: SocketAddr,
-    pub seq_num: u16,
-    pub bytes: Vec<u8>
-  }
-
-  #[derive(Clone)]
-  pub struct SequencedAckedSocketPayload {
-    pub addr: SocketAddr,
-    pub seq_num: u16,
-    pub ack_num: u16,
-    pub ack_field: u32,
-    pub bytes: Vec<u8>
-  }
-
-  #[derive(Clone)]
-  pub struct StringPayload {
-    pub addr: SocketAddr,
-    pub msg: String
-  }
-
-  #[derive(Clone)]
   pub struct IdentifiedPayload {
     pub addr: SocketAddr,
     pub msg_type: MessageType,
@@ -54,6 +23,12 @@ mod types {
   pub enum MessageType {
     KeepAlive,
     Message,
+  }
+
+  #[derive(Clone)]
+  pub struct StringPayload {
+    pub addr: SocketAddr,
+    pub msg: String
   }
 
   #[derive(Debug)]
