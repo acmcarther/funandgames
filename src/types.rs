@@ -26,6 +26,7 @@ mod types {
     pub bytes: Vec<u8>
   }
 
+  #[derive(Clone)]
   pub struct SequencedAckedSocketPayload {
     pub addr: SocketAddr,
     pub seq_num: u16,

@@ -27,8 +27,9 @@ mod udp {
   use std::collections::HashMap;
   use std::iter::{repeat};
   use helpers::Tappable;
+  use time::PreciseTime;
 
-  type OwnAck = (SocketAddr, u16);
+  type OwnAcks = (SocketAddr, u16, u32);
   type DroppedPacket = (SocketAddr, u16);
 
   pub fn start_network(addr: SocketAddr) -> Network {
@@ -36,8 +37,9 @@ mod udp {
     let (send_tx, send_rx) = channel();
     let (recv_tx, recv_rx) = channel();
 
-    let (ack_tx, ack_rx) = channel();
-    let (dropped_tx, dropped_rx) = channel();
+    let (send_attempted_tx, send_attempted_rx) = channel();
+    //let (dropped_packet_tx, dropped_packet_rx) = channel();
+    //let (received_tx, received_rx) = channel();
 
     let send_socket =
       UdpSocket::bind(addr)
@@ -50,8 +52,8 @@ mod udp {
     let send_handle = thread::spawn (move || {
       let mut seq_num_map = HashMap::new();
       loop {
-        let acks = try_recv_all(&ack_rx);
-        let dropped_packets = try_recv_all(&dropped_rx);
+        //let acks = try_recv_all(&ack_rx);
+        //let dropped_packets = try_recv_all(&dropped_packet_rx);
         let _ = send_rx.recv()
           .map(|raw_payload: SocketPayload| {
             let addr = raw_payload.addr.clone();
@@ -62,6 +64,7 @@ mod udp {
             (raw_payload, 5, 5) // Fake ack_num for now
           })
           .map(|(payload, ack_num, ack_field)| add_acks(payload, ack_num, ack_field))
+          .tap(|final_payload| send_attempted_tx.send((final_payload.clone(), PreciseTime::now())))
           .map(serialize)
           .map(|raw_payload: RawSocketPayload| send_socket.send_to(raw_payload.bytes.as_slice(), raw_payload.addr))
           .map(|send_res| send_res.map_err(socket_send_err));
@@ -70,8 +73,20 @@ mod udp {
 
     // Receiving messages
     let recv_handle = thread::spawn (move || {
+      let mut packets_awaiting_ack = HashMap::new();
       loop {
         let mut buf = [0; 256];
+
+        // Add all new sent packets packets_awaiting_ack
+        try_recv_all(&send_attempted_rx)
+          .into_iter()
+          .map(|(sent_packet, timestamp)| {
+            packets_awaiting_ack.insert(
+              (sent_packet.addr.clone(), sent_packet.seq_num.clone()),
+              (sent_packet, timestamp)
+            );
+          }).collect::<Vec<()>>();   // TODO: Get rid of this collect
+
         let payload_result = recv_socket.recv_from(&mut buf)
           .map_err(socket_recv_err)
           .map(|(_, socket_addr)| RawSocketPayload {addr: socket_addr, bytes: buf.to_vec()})
@@ -82,9 +97,8 @@ mod udp {
             .map(strip_marker)
             .map(strip_sequence)
             .map(strip_acks)
-            .tap(|payload| send_acks(&payload, &ack_tx))
-            .tap(|payload| identify_dropped_packets(&payload, &dropped_tx))
-            .map(|payload| recv_tx.send(payload))
+            .tap(|packet| delete_acked_packets(&packet, &mut packets_awaiting_ack))
+            .map(|payload| recv_tx.send(SocketPayload{addr: payload.addr, bytes: payload.bytes}))
         });
       }
     });
@@ -140,24 +154,25 @@ mod udp {
     SocketPayload { addr: payload.addr, bytes: payload.bytes[3..256].into_iter().cloned().collect() }
   }
 
-  fn strip_sequence(payload: SocketPayload) -> SocketPayload {
-    // TODO: Use this value
+  fn strip_sequence(payload: SocketPayload) -> SequencedSocketPayload {
     let seq_num = BigEndian::read_u16(&payload.bytes[0..2]);
-    println!("seq_num: {}", seq_num);
-    SocketPayload { addr: payload.addr, bytes: payload.bytes[2..253].into_iter().cloned().collect() }
+    SequencedSocketPayload {
+      addr: payload.addr,
+      seq_num: seq_num,
+      bytes: payload.bytes[2..253].into_iter().cloned().collect()
+    }
   }
 
-  fn strip_acks(payload: SocketPayload) -> SocketPayload {
-    // TODO: Use this value
+  fn strip_acks(payload: SequencedSocketPayload) -> SequencedAckedSocketPayload {
     let ack_num = BigEndian::read_u16(&payload.bytes[0..2]);
     let ack_field = BigEndian::read_u32(&payload.bytes[2..6]);
-    println!("ack_num: {}", ack_num);
-    println!("ack_field: {}", ack_field);
-    SocketPayload { addr: payload.addr, bytes: payload.bytes[6..251].into_iter().cloned().collect() }
-  }
-
-  fn send_acks(payload: &SocketPayload, ack_tx: &Sender<OwnAck>) {
-    ack_tx.send((payload.addr.clone(), 5));
+    SequencedAckedSocketPayload {
+      addr: payload.addr,
+      seq_num: payload.seq_num,
+      ack_num: ack_num,
+      ack_field: ack_field,
+      bytes: payload.bytes[6..251].into_iter().cloned().collect()
+    }
   }
 
   fn try_recv_all<T>(ack_rx: &Receiver<T>) -> Vec<T> {
@@ -167,7 +182,23 @@ mod udp {
       .collect()
   }
 
-  fn identify_dropped_packets(payload: &SocketPayload, dropped_tx: &Sender<u16>){
-    // TODO: Implement
+  fn delete_acked_packets(packet: &SequencedAckedSocketPayload, packets_awaiting_ack: &mut HashMap<(SocketAddr, u16), (SequencedAckedSocketPayload, PreciseTime)>) {
+    let ack_num = packet.ack_num;
+    let ack_field = packet.ack_field;
+    let past_acks = (0..32).map(|bit_idx| {
+      // Builds a bit mask, and checks if bit is present by comparing result to 0
+      (bit_idx, 0 != ((1 << bit_idx) & ack_field))
+    });
+
+    // Remove initial ack
+    packets_awaiting_ack.remove(&(packet.addr, ack_num));
+
+    // Remove subsequent acks
+    past_acks.map(|(idx, was_acked)| {
+      if was_acked {
+        packets_awaiting_ack.remove(&(packet.addr, ack_num - idx));
+      }
+    }).collect::<Vec<()>>(); // TODO: no collect
   }
+
 }
