@@ -13,7 +13,8 @@ mod app_net {
     IdentifiedPayload,
     StringPayload,
     MessageType,
-    byte_to_message_type
+    byte_to_message_type,
+    message_type_to_byte
   };
 
   use game_udp::types::SocketPayload;
@@ -48,6 +49,8 @@ mod app_net {
     server_state.users.keys().map (|socket_addr| {
       if from_socket_addr_str != socket_addr.to_string() {
         let _ = send_tx.send(SocketPayload {addr: socket_addr.clone(), bytes: full_payload_bytes.clone()});
+      } else {
+        let _ = send_tx.send(SocketPayload{addr: socket_addr.clone(), bytes: vec![message_type_to_byte(MessageType::KeepAlive)]});
       }
     }).collect::<Vec<()>>();
   }
