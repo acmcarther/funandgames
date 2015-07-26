@@ -15,11 +15,13 @@ mod types {
   use std::net::SocketAddr;
   use connected_udp::ConnectionTable;
 
+  #[derive(Clone)]
   pub struct SocketPayload {
     pub addr: SocketAddr,
     pub bytes: Vec<u8>
   }
 
+  #[derive(Clone)]
   pub struct SequencedSocketPayload {
     pub addr: SocketAddr,
     pub seq_num: u16,
@@ -35,18 +37,20 @@ mod types {
     pub bytes: Vec<u8>
   }
 
+  #[derive(Clone)]
   pub struct StringPayload {
     pub addr: SocketAddr,
     pub msg: String
   }
 
+  #[derive(Clone)]
   pub struct IdentifiedPayload {
     pub addr: SocketAddr,
     pub msg_type: MessageType,
     pub bytes: Vec<u8>
   }
 
-  #[derive(Debug)]
+  #[derive(Debug, Clone)]
   pub enum MessageType {
     KeepAlive,
     Message,

@@ -21,6 +21,7 @@ mod types {
     pub thread_handles: IOHandles
   }
 
+  #[derive(Clone)]
   pub struct RawSocketPayload {
     pub addr: SocketAddr,
     pub bytes: Vec<u8>

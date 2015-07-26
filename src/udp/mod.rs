@@ -29,7 +29,7 @@ mod udp {
   use byteorder::{ByteOrder, BigEndian};
   use std::collections::HashMap;
   use std::iter::{repeat};
-  use helpers::Tappable;
+  use helpers::{Tappable, TappableIter};
   use time::{Duration, PreciseTime};
 
   type OwnAcks = (SocketAddr, u16, u32);
@@ -56,7 +56,24 @@ mod udp {
       let mut seq_num_map = HashMap::new();
       loop {
         //let acks = try_recv_all(&ack_rx);
-        let dropped_packets = try_recv_all(&dropped_packet_rx);
+        try_recv_all(&dropped_packet_rx)
+          .into_iter()
+          .map(|final_payload: SequencedAckedSocketPayload| SocketPayload {addr: final_payload.addr, bytes: final_payload.bytes})
+          .map(|raw_payload: SocketPayload| {
+            let addr = raw_payload.addr.clone();
+            (raw_payload, increment_seq_number(&mut seq_num_map, addr))
+          })
+          .map(|(raw_payload, seq_num)| add_sequence_number(raw_payload, seq_num))
+          .map(|raw_payload: SequencedSocketPayload| {
+            (raw_payload, 5, 5) // Fake ack_num for now
+          })
+          .map(|(payload, ack_num, ack_field)| add_acks(payload, ack_num, ack_field))
+          .tap(|final_payload: &SequencedAckedSocketPayload| send_attempted_tx.send((final_payload.clone(), PreciseTime::now())))
+          .map(serialize)
+          .map(|raw_payload: RawSocketPayload| send_socket.send_to(raw_payload.bytes.as_slice(), raw_payload.addr))
+          .map(|send_res| {send_res.map_err(socket_send_err);})
+          .collect::<Vec<()>>();    // TODO: Remove collect
+
         let _ = send_rx.recv()
           .map(|raw_payload: SocketPayload| {
             let addr = raw_payload.addr.clone();
