@@ -19,6 +19,7 @@ mod udp {
   };
   use udp::types::{
     IOHandles,
+    PeerAcks,
     Network,
     RawSocketPayload
   };
@@ -42,7 +43,7 @@ mod udp {
 
     let (send_attempted_tx, send_attempted_rx) = channel();
     let (dropped_packet_tx, dropped_packet_rx) = channel();
-    //let (received_tx, received_rx) = channel();
+    let (received_packet_tx, received_packet_rx) = channel();
 
     let send_socket =
       UdpSocket::bind(addr)
@@ -54,15 +55,21 @@ mod udp {
     // Sending messages
     let send_handle = thread::spawn (move || {
       let mut seq_num_map = HashMap::new();
+      let mut ack_map = HashMap::new();
       loop {
+        try_recv_all(&received_packet_rx)
+          .into_iter()
+          .map(|(addr, seq_num)| update_ack_map(addr, seq_num, &mut ack_map))
+          .collect::<Vec<()>>();    // TODO: Remove collect
+
         //let acks = try_recv_all(&ack_rx);
         try_recv_all(&dropped_packet_rx)
           .into_iter()
           .map(|final_payload: SequencedAckedSocketPayload| SocketPayload {addr: final_payload.addr, bytes: final_payload.bytes})
-          .map(|raw_payload| deliver_packet(Ok(raw_payload), &send_attempted_tx, &send_socket, &mut seq_num_map))
+          .map(|raw_payload| deliver_packet(Ok(raw_payload), &send_attempted_tx, &send_socket, &mut seq_num_map, &ack_map))
           .collect::<Vec<()>>();    // TODO: Remove collect
 
-        deliver_packet(send_rx.recv(), &send_attempted_tx, &send_socket, &mut seq_num_map);
+        deliver_packet(send_rx.recv(), &send_attempted_tx, &send_socket, &mut seq_num_map, &ack_map);
       }
     });
 
@@ -93,7 +100,6 @@ mod udp {
           .map(|result| result.unwrap())
           .map(|(packet, _)| {let _ = dropped_packet_tx.send(packet);}).collect::<Vec<()>>(); // TODO: Remove collect
 
-
         // Add all new sent packets packets_awaiting_ack
         try_recv_all(&send_attempted_rx)
           .into_iter()
@@ -115,6 +121,7 @@ mod udp {
             .map(strip_sequence)
             .map(strip_acks)
             .tap(|packet| delete_acked_packets(&packet, &mut packets_awaiting_ack))
+            .tap(|packet| received_packet_tx.send((packet.addr, packet.seq_num)))
             .map(|payload| recv_tx.send(SocketPayload{addr: payload.addr, bytes: payload.bytes}))
         });
       }
@@ -222,7 +229,8 @@ mod udp {
     packet_result: Result<SocketPayload, RecvError>,
     send_attempted_tx: &Sender<(SequencedAckedSocketPayload, PreciseTime)>,
     send_socket: &UdpSocket,
-    seq_num_map: &mut HashMap<SocketAddr, u16>
+    seq_num_map: &mut HashMap<SocketAddr, u16>,
+    ack_map: &HashMap<SocketAddr, PeerAcks>
     ) {
     let _ =
       packet_result
@@ -232,7 +240,9 @@ mod udp {
         })
         .map(|(raw_payload, seq_num)| add_sequence_number(raw_payload, seq_num))
         .map(|raw_payload: SequencedSocketPayload| {
-          (raw_payload, 5, 5) // Fake ack_num for now
+          let default = PeerAcks{ack_num: 0, ack_field: 0}; // TODO: remove this when we dont need it
+          let ack_data = ack_map.get(&raw_payload.addr).unwrap_or(&default);
+          (raw_payload, ack_data.ack_num, ack_data.ack_field) // Fake ack_num for now
         })
         .map(|(payload, ack_num, ack_field)| add_acks(payload, ack_num, ack_field))
         .tap(|final_payload| send_attempted_tx.send((final_payload.clone(), PreciseTime::now())))
@@ -241,4 +251,117 @@ mod udp {
         .map(|send_res| send_res.map_err(socket_send_err));
   }
 
+  fn update_ack_map(addr: SocketAddr, seq_num: u16, ack_map: &mut HashMap<SocketAddr, PeerAcks>) {
+    let peer_acks = ack_map.entry(addr).or_insert(PeerAcks { ack_num: 0, ack_field: 0 });
+    update_peer_acks(seq_num, peer_acks);
+  }
+
+  // TODO: More thorough testing
+  fn update_peer_acks(seq_num: u16, peer_acks: &mut PeerAcks) {
+    let ack_num_i32: i32 = peer_acks.ack_num as i32;
+    let seq_num_i32: i32 = seq_num as i32;
+    let ack_delta = seq_num_i32 - ack_num_i32;
+    // New number is bigger than old number
+    let is_normal_newer = ack_delta > 0 && ack_delta < ((u16::max_value() / 2) as i32);
+    let is_wraparound_newer = ack_delta < 0 && ack_delta < (-((u16::max_value() / 2) as i32));
+
+    if is_normal_newer {
+      if ack_delta < 32 {
+        peer_acks.ack_field = ((peer_acks.ack_field << 1) | 1) << ((ack_delta - 1) as u32);
+        peer_acks.ack_num = seq_num;
+      } else {
+        peer_acks.ack_field = 0;
+        peer_acks.ack_num = seq_num;
+      }
+    } else if is_wraparound_newer {
+      let wrap_delta = seq_num.wrapping_sub(peer_acks.ack_num);
+      if wrap_delta < 32 {
+        peer_acks.ack_field = ((peer_acks.ack_field << 1) | 1) << ((wrap_delta - 1) as u32);
+        peer_acks.ack_num = seq_num;
+      } else {
+        peer_acks.ack_field = 0;
+        peer_acks.ack_num = seq_num;
+      }
+    } else {
+      if peer_acks.ack_num > seq_num {
+        let ack_delta_u16 = peer_acks.ack_num - seq_num;
+        if ack_delta_u16 < 32 && ack_delta_u16 > 0 {
+          peer_acks.ack_field = peer_acks.ack_field | (1 << (ack_delta_u16 - 1));
+        }
+      } else {
+        let ack_delta_u16 = peer_acks.ack_num.wrapping_sub(seq_num);
+        if ack_delta_u16 < 32 && ack_delta_u16 > 0 {
+          peer_acks.ack_field = peer_acks.ack_field | (1 << (ack_delta_u16 - 1));
+        }
+      }
+    }
+  }
+
+  #[test]
+  fn update_ack_map_for_normal_newer() {
+    // In range, sets correct flag
+    let mut peer_acks = PeerAcks { ack_num: 5, ack_field: 0b101};
+    let seq_num = 10;
+    update_peer_acks(seq_num, &mut peer_acks);
+    assert!(peer_acks.ack_num == 10);
+    assert!(peer_acks.ack_field == 0b10110000);
+
+    // Out of range, sets ack num and empty flags
+    let mut peer_acks = PeerAcks { ack_num: 5, ack_field: 0b101};
+    let seq_num = 40;
+    update_peer_acks(seq_num, &mut peer_acks);
+    assert!(peer_acks.ack_num == 40);
+    assert!(peer_acks.ack_field == 0);
+  }
+
+  #[test]
+  fn update_ack_map_for_wraparound_newer() {
+    // In range, sets correct flag
+    let mut peer_acks = PeerAcks { ack_num: 65535, ack_field: 0b101};
+    let seq_num = 4;
+    update_peer_acks(seq_num, &mut peer_acks);
+    assert!(peer_acks.ack_num == 4);
+    assert!(peer_acks.ack_field == 0b10110000);
+
+    // Out of range, sets ack num and empty flags
+    let mut peer_acks = PeerAcks { ack_num: 65535, ack_field: 0b101};
+    let seq_num = 40;
+    update_peer_acks(seq_num, &mut peer_acks);
+    assert!(peer_acks.ack_num == 40);
+    assert!(peer_acks.ack_field == 0);
+  }
+
+  #[test]
+  fn update_ack_map_for_normal_older() {
+    // In range, sets correct flag
+    let mut peer_acks = PeerAcks { ack_num: 20, ack_field: 0b101};
+    let seq_num = 15;
+    update_peer_acks(seq_num, &mut peer_acks);
+    assert!(peer_acks.ack_num == 20);
+    assert!(peer_acks.ack_field == 0b10101);
+
+    // Out of range does nothing
+    let mut peer_acks = PeerAcks { ack_num: 40, ack_field: 0b101};
+    let seq_num = 5;
+    update_peer_acks(seq_num, &mut peer_acks);
+    assert!(peer_acks.ack_num == 40);
+    assert!(peer_acks.ack_field == 0b101);
+  }
+
+  #[test]
+  fn update_ack_map_for_wraparound_older() {
+    // In range, sets correct flag
+    let mut peer_acks = PeerAcks { ack_num: 5, ack_field: 0b101};
+    let seq_num = 65535;
+    update_peer_acks(seq_num, &mut peer_acks);
+    assert!(peer_acks.ack_num == 5);
+    assert!(peer_acks.ack_field == 0b100101);
+
+    // Out of range does nothing
+    let mut peer_acks = PeerAcks { ack_num: 40, ack_field: 0b101};
+    let seq_num = 65535;
+    update_peer_acks(seq_num, &mut peer_acks);
+    assert!(peer_acks.ack_num == 40);
+    assert!(peer_acks.ack_field == 0b101);
+  }
 }
