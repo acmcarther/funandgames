@@ -94,21 +94,32 @@ fn client() {
 
   let stdin_handle = thread::spawn (move || {
     let mut stdin = stdin();
+    let mut counter = 0;
     println!("type your messages");
     loop {
-      let mut message = String::new();
-      let _ = stdin.read_line(&mut message);
-      let mut msg: Vec<u8> = message.as_bytes().into_iter().cloned().collect();
+      thread::sleep_ms(1);
+      counter += 1;
+      //let mut message = String::new();
+      //let _ = stdin.read_line(&mut message);
+      let mut msg: Vec<u8> = counter.to_string().as_bytes().into_iter().cloned().collect();
       msg.insert(0, message_type_to_byte(MessageType::Message));
       let _ = send_tx.send(SocketPayload{addr: server_addr, bytes: msg}).unwrap();
     }
   });
 
   let stdout_handle = thread::spawn (move || {
+    let mut recv_msgs = 0;
+    let mut last_time = PreciseTime::now();
     loop {
       let socket_payload = recv_rx.recv().unwrap();
       let string_payload = stringify_body(socket_payload);
-      println!("{}", string_payload.msg.trim());
+      recv_msgs += 1;
+      if last_time.to(PreciseTime::now()).num_seconds() > 1 {
+        let recv_bytes = recv_msgs * 256;
+        println!("Recieved {} bytes", recv_bytes);
+        recv_msgs = 0;
+        last_time = PreciseTime::now()
+      }
     }
   });
 
