@@ -57,10 +57,11 @@ fn server() {
   let recv_rx: Receiver<SocketPayload> = network.recv_channel;
 
   let chat_handle = thread::spawn (move || {
+    let mut last_heartbeat = PreciseTime::now();
     loop {
       let last_call = PreciseTime::now();
 
-      let _ = recv_rx.recv()
+      let _ = recv_rx.try_recv().ok()
         .tap(|payload| handle_connections(payload, &mut server_state.users))
         .map(identify_payload)
         .map(|possible_payload| {
@@ -69,6 +70,13 @@ fn server() {
 
       if last_call.to(PreciseTime::now()).num_seconds() > 2 {
         cull_connections(&mut server_state.users);
+      }
+
+      if last_heartbeat.to(PreciseTime::now()).num_seconds() >= 1 {
+        server_state.users.keys().map (|socket_addr| {
+          let _ = send_tx.send(SocketPayload{addr: socket_addr.clone(), bytes: vec![message_type_to_byte(MessageType::KeepAlive)]}).unwrap();
+        }).collect::<Vec<()>>();
+        last_heartbeat = PreciseTime::now();
       }
     }
   });
@@ -122,9 +130,15 @@ fn client() {
 
   let stdout_handle = thread::spawn (move || {
     loop {
-      let socket_payload = recv_rx.recv().unwrap();
-      let string_payload = stringify_body(socket_payload);
-      println!("{}", string_payload.msg.trim());
+      let _ = recv_rx.recv().ok()
+        .and_then(identify_payload)
+        .and_then(|possible_payload| {
+          match possible_payload.msg_type {
+            MessageType::Message => Some(stringify_body(possible_payload.bytes)),
+            _ => None
+          }
+        })
+        .map(|msg| println!("{}", msg.trim()));
     }
   });
 

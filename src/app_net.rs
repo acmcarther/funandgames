@@ -45,7 +45,10 @@ mod app_net {
     let from_socket_addr_str = origin.to_string();
     let name_with_colon = from_socket_addr_str.clone() + ": ";
     let name_bytes = name_with_colon.as_bytes();
-    let full_payload_bytes: Vec<u8> = name_bytes.into_iter().cloned().chain(payload_bytes.iter().cloned()).collect();
+    let full_payload_bytes: Vec<u8> =
+      [message_type_to_byte(MessageType::Message)].into_iter().cloned()
+      .chain(name_bytes.into_iter().cloned())
+      .chain(payload_bytes.iter().cloned()).collect();
     server_state.users.keys().map (|socket_addr| {
       if from_socket_addr_str != socket_addr.to_string() {
         let _ = send_tx.send(SocketPayload {addr: socket_addr.clone(), bytes: full_payload_bytes.clone()});
@@ -55,8 +58,8 @@ mod app_net {
     }).collect::<Vec<()>>();
   }
 
-  pub fn stringify_body(payload: SocketPayload) -> StringPayload {
-    let full_msg = String::from_utf8(payload.bytes).unwrap();
-    StringPayload { addr: payload.addr, msg: full_msg.trim_matches('\0').to_string() }
+  pub fn stringify_body(bytes: Vec<u8>) -> String {
+    let full_msg = String::from_utf8(bytes).unwrap();
+    full_msg.trim_matches('\0').to_string()
   }
 }
