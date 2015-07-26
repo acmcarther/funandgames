@@ -28,7 +28,7 @@ mod udp {
   use byteorder::{ByteOrder, BigEndian};
   use std::collections::HashMap;
   use std::iter::{repeat};
-  use helpers::{Tappable, TappableIter};
+  use tap::{Tappable, TappableIter};
   use time::{Duration, PreciseTime};
 
   type OwnAcks = (SocketAddr, u16, u32);

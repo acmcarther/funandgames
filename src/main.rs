@@ -10,11 +10,11 @@ use std::sync::mpsc::{Sender, Receiver};
 use time::PreciseTime;
 
 extern crate time;
+extern crate tap;
 extern crate byteorder;
 
 mod app_net;
 mod connected_udp;
-mod helpers;
 mod net_helpers;
 mod params;
 mod str_ops;
@@ -35,7 +35,7 @@ use str_ops::{net_mode_from_string};
 use udp::types::SocketPayload;
 use udp::start_network;
 use connected_udp::{handle_connections, cull_connections};
-use helpers::Tappable;
+use tap::Tappable;
 
 fn main() {
   let second_arg = env::args().nth(1);

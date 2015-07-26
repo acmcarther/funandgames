@@ -3,6 +3,7 @@ name = "funandgames"
 version = "0.1.0"
 dependencies = [
  "byteorder 0.3.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tap 0.1.0 (git+https://github.com/acmcarther/rust_tap)",
  "time 0.1.31 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -24,6 +25,11 @@ dependencies = [
 name = "libc"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "tap"
+version = "0.1.0"
+source = "git+https://github.com/acmcarther/rust_tap#8061fac5563803844c3931b63f0bdeb66a13ea74"
 
 [[package]]
 name = "time"
