@@ -8,7 +8,7 @@ mod errors;
 
 mod udp {
   use std::net::{SocketAddr, UdpSocket};
-  use std::sync::mpsc::{channel, Sender, Receiver};
+  use std::sync::mpsc::{channel, Sender, Receiver, RecvError};
   use std::thread;
 
   use udp::errors::{socket_bind_err, socket_recv_err, socket_send_err};
@@ -59,35 +59,10 @@ mod udp {
         try_recv_all(&dropped_packet_rx)
           .into_iter()
           .map(|final_payload: SequencedAckedSocketPayload| SocketPayload {addr: final_payload.addr, bytes: final_payload.bytes})
-          .map(|raw_payload: SocketPayload| {
-            let addr = raw_payload.addr.clone();
-            (raw_payload, increment_seq_number(&mut seq_num_map, addr))
-          })
-          .map(|(raw_payload, seq_num)| add_sequence_number(raw_payload, seq_num))
-          .map(|raw_payload: SequencedSocketPayload| {
-            (raw_payload, 5, 5) // Fake ack_num for now
-          })
-          .map(|(payload, ack_num, ack_field)| add_acks(payload, ack_num, ack_field))
-          .tap(|final_payload: &SequencedAckedSocketPayload| send_attempted_tx.send((final_payload.clone(), PreciseTime::now())))
-          .map(serialize)
-          .map(|raw_payload: RawSocketPayload| send_socket.send_to(raw_payload.bytes.as_slice(), raw_payload.addr))
-          .map(|send_res| {send_res.map_err(socket_send_err);})
+          .map(|raw_payload| deliver_packet(Ok(raw_payload), &send_attempted_tx, &send_socket, &mut seq_num_map))
           .collect::<Vec<()>>();    // TODO: Remove collect
 
-        let _ = send_rx.recv()
-          .map(|raw_payload: SocketPayload| {
-            let addr = raw_payload.addr.clone();
-            (raw_payload, increment_seq_number(&mut seq_num_map, addr))
-          })
-          .map(|(raw_payload, seq_num)| add_sequence_number(raw_payload, seq_num))
-          .map(|raw_payload: SequencedSocketPayload| {
-            (raw_payload, 5, 5) // Fake ack_num for now
-          })
-          .map(|(payload, ack_num, ack_field)| add_acks(payload, ack_num, ack_field))
-          .tap(|final_payload| send_attempted_tx.send((final_payload.clone(), PreciseTime::now())))
-          .map(serialize)
-          .map(|raw_payload: RawSocketPayload| send_socket.send_to(raw_payload.bytes.as_slice(), raw_payload.addr))
-          .map(|send_res| send_res.map_err(socket_send_err));
+        deliver_packet(send_rx.recv(), &send_attempted_tx, &send_socket, &mut seq_num_map);
       }
     });
 
@@ -241,6 +216,29 @@ mod udp {
         packets_awaiting_ack.remove(&(packet.addr, ack_num - idx));
       }
     }).collect::<Vec<()>>(); // TODO: no collect
+  }
+
+  fn deliver_packet(
+    packet_result: Result<SocketPayload, RecvError>,
+    send_attempted_tx: &Sender<(SequencedAckedSocketPayload, PreciseTime)>,
+    send_socket: &UdpSocket,
+    seq_num_map: &mut HashMap<SocketAddr, u16>
+    ) {
+    let _ =
+      packet_result
+        .map(|raw_payload: SocketPayload| {
+          let addr = raw_payload.addr.clone();
+          (raw_payload, increment_seq_number(seq_num_map, addr))
+        })
+        .map(|(raw_payload, seq_num)| add_sequence_number(raw_payload, seq_num))
+        .map(|raw_payload: SequencedSocketPayload| {
+          (raw_payload, 5, 5) // Fake ack_num for now
+        })
+        .map(|(payload, ack_num, ack_field)| add_acks(payload, ack_num, ack_field))
+        .tap(|final_payload| send_attempted_tx.send((final_payload.clone(), PreciseTime::now())))
+        .map(serialize)
+        .map(|raw_payload: RawSocketPayload| send_socket.send_to(raw_payload.bytes.as_slice(), raw_payload.addr))
+        .map(|send_res| send_res.map_err(socket_send_err));
   }
 
 }
