@@ -31,7 +31,7 @@ use params::{
 };
 use types::{message_type_to_byte, MessageType, NetMode, ServerState};
 use str_ops::{net_mode_from_string};
-use game_udp::types::SocketPayload;
+use game_udp::packet_types::Packet;
 use game_udp::start_network;
 use connected_udp::{handle_connections, cull_connections};
 use tap::Tappable;
@@ -53,8 +53,8 @@ fn server() {
 
   let network = start_network(server_params.addr);
 
-  let send_tx: Sender<SocketPayload> = network.send_channel;
-  let recv_rx: Receiver<SocketPayload> = network.recv_channel;
+  let send_tx: Sender<Packet> = network.send_channel;
+  let recv_rx: Receiver<Packet> = network.recv_channel;
 
   let chat_handle = thread::spawn (move || {
     let mut last_heartbeat = PreciseTime::now();
@@ -74,7 +74,7 @@ fn server() {
 
       if last_heartbeat.to(PreciseTime::now()).num_seconds() >= 1 {
         server_state.users.keys().map (|socket_addr| {
-          let _ = send_tx.send(SocketPayload{addr: socket_addr.clone(), bytes: vec![message_type_to_byte(MessageType::KeepAlive)]}).unwrap();
+          let _ = send_tx.send(Packet{addr: socket_addr.clone(), bytes: vec![message_type_to_byte(MessageType::KeepAlive)]}).unwrap();
         }).collect::<Vec<()>>();
         last_heartbeat = PreciseTime::now();
       }
@@ -97,8 +97,8 @@ fn client() {
 
   let network = start_network(client_params.addr);
 
-  let send_tx: Sender<SocketPayload> = network.send_channel;
-  let recv_rx: Receiver<SocketPayload> = network.recv_channel;
+  let send_tx: Sender<Packet> = network.send_channel;
+  let recv_rx: Receiver<Packet> = network.recv_channel;
   let (stdin_tx, stdin_rx) = channel();
 
   let stdin_handle = thread::spawn (move || {
@@ -119,10 +119,10 @@ fn client() {
       possible_chat.map (|message| {
         let mut msg: Vec<u8> = message.as_bytes().into_iter().cloned().collect();
         msg.insert(0, message_type_to_byte(MessageType::Message));
-        let _ = send_tx.send(SocketPayload{addr: server_addr, bytes: msg}).unwrap();
+        let _ = send_tx.send(Packet{addr: server_addr, bytes: msg}).unwrap();
       });
       if last_heartbeat.to(PreciseTime::now()).num_seconds() >= 1 {
-        let _ = send_tx.send(SocketPayload{addr: server_addr, bytes: vec![message_type_to_byte(MessageType::KeepAlive)]}).unwrap();
+        let _ = send_tx.send(Packet{addr: server_addr, bytes: vec![message_type_to_byte(MessageType::KeepAlive)]}).unwrap();
         last_heartbeat = PreciseTime::now();
       }
     }

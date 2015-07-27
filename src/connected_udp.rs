@@ -10,7 +10,7 @@ mod connected_udp {
   use std::collections::HashMap;
   use time::PreciseTime;
 
-  use game_udp::types::SocketPayload;
+  use game_udp::packet_types::Packet;
 
   pub type ConnectionTable = HashMap<SocketAddr, Connection>;
 
@@ -18,8 +18,8 @@ mod connected_udp {
     pub last_contact: PreciseTime
   }
 
-  pub fn handle_connections(payload: &SocketPayload, connections: &mut ConnectionTable) {
-    let _ = connections.insert(payload.addr.clone(), Connection { last_contact: PreciseTime::now() });
+  pub fn handle_connections(packet: &Packet, connections: &mut ConnectionTable) {
+    let _ = connections.insert(packet.addr.clone(), Connection { last_contact: PreciseTime::now() });
   }
 
   pub fn cull_connections(connections: &mut ConnectionTable) {
